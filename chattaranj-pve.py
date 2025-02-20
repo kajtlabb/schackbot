@@ -2,7 +2,7 @@ import pygame
 import sys
 import math
 import time
-import random
+from brain import get_possible_moves
 
 # Initialize Pygame
 pygame.init()
@@ -19,26 +19,103 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simple Chess Game")
 
 
+class Piece:
+    def __init__(self):
+        self.type = " "
+        self.value = 0
+        self.curr_pos = (0, 0)
+        self.possible_moves = []  # List of tuples (x,y)
+        self.best_score = 0
+        self.best_move = (0, 0)
+
+
 class Bot:
-    def move(self, board):
-        while True:
-            start_x = random.randint(0, 7)
-            start_y = random.randint(0, 7)
-            end_x = random.randint(0, 7)
-            end_y = random.randint(0, 7)
-            piece = board[start_x][start_y]
-            print(
-                f"Attempting to move {piece} from {start_x, start_y} to {end_x, end_y}"
-            )
-            if (
-                validate_move(
-                    piece, board, start_x, end_x, start_y, end_y, is_white=False
+    def __init__(self, board):
+        self.pieces = []
+        self.best_piece = Piece()
+        self.create_pieces(board)
+
+    def create_pieces(self, board):
+        piece_values = {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 1337}
+
+        for row in range(2):
+            for col in range(8):
+                piece = Piece()
+                piece.type = board[row][col]
+                piece.curr_pos = (row, col)
+                piece.value = piece_values.get(piece.type)
+                piece.possible_moves = get_possible_moves(
+                    board, piece.curr_pos[0], piece.curr_pos[1]
                 )
-                and board[start_x][start_y].islower()
-            ):
-                board[start_x][start_y] = " "
-                board[end_x][end_y] = piece
-                break
+                self.choose_best_square(board, piece, piece.possible_moves)
+                self.pieces.append(piece)
+
+        if len(self.pieces) != 16:
+            print("Error in piece creation...")
+            quit()
+
+    def choose_best_square(self, board, piece, possible_moves):
+        """
+        Chooses the best square to move a piece to, prioritizing capturing higher-value pieces.
+        This is a VERY simplified example.
+        """
+        piece_values = {
+            "p": 1,
+            "r": 5,
+            "n": 3,
+            "b": 3,
+            "q": 9,
+            "k": 0,
+            "P": 1,
+            "R": 5,
+            "N": 3,
+            "B": 3,
+            "Q": 9,
+            "K": 0,
+        }  # Relative piece values
+
+        best_score = -float("inf")  # Initialize with a very low score
+        piece.best_Score = -float("inf")  # Initialize with a very low score
+
+        for move_row, move_col in possible_moves:
+            target_piece = board[move_row][move_col]
+
+            # Check if we are capturing a piece
+            if target_piece != " ":
+                score = piece_values.get(
+                    target_piece.lower(), 0
+                )  # Value of captured piece (absolute value)
+            else:
+                score = 0  # No capture
+
+            #  Add a small bonus for controlling the center
+            if (move_row, move_col) in [(3, 3), (3, 4), (4, 3), (4, 4)]:
+                score += 0.1
+
+            if score > best_score:
+                best_score = score
+                piece.best_score = score
+                piece.best_move = (move_row, move_col)
+
+    def update_moves(self, board):
+        top_score = -1
+        for piece in self.pieces:
+            piece.possible_moves = get_possible_moves(
+                board, piece.curr_pos[0], piece.curr_pos[1]
+            )
+            self.choose_best_square(board, piece, piece.possible_moves)
+            if piece.best_score > top_score:
+                top_score = piece.best_score
+                self.best_piece = piece
+
+    def move(self, board):
+        self.update_moves(board)
+        end_x, end_y = self.best_piece.best_move
+        board[self.best_piece.curr_pos[0]][self.best_piece.curr_pos[1]] = " "
+        board[end_x][end_y] = self.best_piece.type
+        self.best_piece.curr_pos = (end_x, end_y)
+        self.best_piece = Piece()
+        # self.update_moves(board)
         return board
 
 
@@ -63,13 +140,14 @@ class Game:
                         print(f"Could not load image for {color}_{piece}")
             return piece_images
 
-        self.in_play = " "
+        self.chosen_piece = " "
         self.is_white = True
 
         self.start_x = 0
         self.start_y = 0
         self.end_x = 0
         self.end_y = 0
+        self.possible_moves = []
 
         self.board = [
             ["r", "n", "b", "q", "k", "b", "n", "r"],
@@ -85,43 +163,23 @@ class Game:
         self.piece_icons = load_piece_icons()
 
     def move(self, col, row, bot):
-        if self.in_play == " ":
-            self.in_play = self.board[row][col]
-            self.board[row][col] = " "
+        if self.chosen_piece == " ":
+            self.chosen_piece = self.board[row][col]
             self.start_x = row
             self.start_y = col
+            self.possible_moves = get_possible_moves(self.board, row, col)
         else:
             self.end_x = row
             self.end_y = col
-            if not validate_move(
-                self.in_play,
-                self.board,
-                self.start_x,
-                self.end_x,
-                self.start_y,
-                self.end_y,
-                is_white=True,
-            ):
-                self.reset()
-            else:
-                if self.board[row][col] == "K" or self.board[row][col] == "k":
-                    display_temp_text("GAME OVER", 2)
-                    pygame.quit()
-                    quit()
-                self.board[row][col] = self.in_play
-                self.in_play = " "
-                draw_pieces(self.piece_icons, self.board)
-                display_temp_text(f'{"WHITE" if self.is_white else "BLACK"} TURN', 1)
 
-                self.board = bot.move(self.board)
-
-    def reset(self):
-        self.board[self.start_x][self.start_y] = self.in_play
-        self.start_x = 0
-        self.start_y = 0
-        self.end_x = 0
-        self.end_y = 0
-        self.in_play = " "
+            for possible_x, possible_y in self.possible_moves:
+                print(self.end_x, possible_x)
+                if self.end_x == possible_x and self.end_y == possible_y:
+                    self.board[row][col] = self.chosen_piece
+                    self.board[self.start_x][self.start_y] = " "
+                    self.chosen_piece = " "
+                    self.possible_moves = []
+                    self.board = bot.move(self.board)  # Move that botty boy
 
 
 def validate_move(piece, board, start_x, end_x, start_y, end_y, is_white):
@@ -272,6 +330,15 @@ def draw_pieces(piece_images, board):
                 )
 
 
+def draw_possible_moves(possible_moves):
+    for row, col in possible_moves:
+        pygame.draw.rect(
+            screen,
+            (0, 255, 0, 128),
+            pygame.Rect(col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE),
+        )
+
+
 def display_temp_text(message, duration):
     BLACK = (0, 0, 0)
     font = pygame.font.SysFont("Arial", 50)
@@ -290,7 +357,7 @@ def display_temp_text(message, duration):
 # Main game loop
 def main():
     game = Game()
-    bot = Bot()
+    bot = Bot(game.board)
 
     while True:
         for event in pygame.event.get():
@@ -306,6 +373,7 @@ def main():
 
         draw_board()
         draw_pieces(game.piece_icons, game.board)
+        draw_possible_moves(game.possible_moves)
         pygame.display.flip()
 
 

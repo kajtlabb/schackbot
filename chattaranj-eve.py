@@ -30,11 +30,7 @@ class Bot:
             print(
                 f"Attempting to move {piece} from {start_x, start_y} to {end_x, end_y}"
             )
-            if (
-                validate_move(
-                    piece, board, start_x, end_x, start_y, end_y, is_white
-                )
-            ):
+            if validate_move(piece, board, start_x, end_x, start_y, end_y, is_white):
                 board[start_x][start_y] = " "
                 board[end_x][end_y] = piece
                 break
@@ -76,8 +72,8 @@ class Game:
         self.piece_icons = load_piece_icons()
 
     def move(self, bot, is_white):
-                display_temp_text(f'{"WHITE" if is_white else "BLACK"} TURN', 1)
-                self.board = bot.move(self.board, is_white)
+        display_temp_text(f'{"WHITE" if is_white else "BLACK"} TURN', 1)
+        self.board = bot.move(self.board, is_white)
 
 
 def validate_move(piece, board, start_x, end_x, start_y, end_y, is_white):
@@ -255,13 +251,14 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-        
+
         game.move(bot, is_white)
 
         draw_board()
         draw_pieces(game.piece_icons, game.board)
-        is_white = not is_white # Flip turn
+        is_white = not is_white  # Flip turn
         pygame.display.flip()
+
 
 # Run the game
 if __name__ == "__main__":
